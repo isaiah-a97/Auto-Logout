@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Auto Logout - Countdown</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { margin: 0; font: 14px system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    .wrap { padding: 14px 16px; width: 280px; }
+    h1 { margin: 0 0 6px; font-size: 16px; }
+    .domain { opacity: 0.8; word-break: break-all; margin-bottom: 8px; }
+    .timer-container { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 10px; }
+    .timer { font-size: 28px; font-weight: 700; }
+    .timer-emoji { font-size: 28px; }
+    .bar { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
+    .fill { height: 100%; width: 0%; background: #3b82f6; transition: width .25s linear; }
+    .note { margin-top: 10px; font-size: 12px; opacity: .7; }
+    .muted { opacity: .6; }
+    .mode-toggle { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+    .toggle-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .toggle-label input[type="checkbox"] { margin: 0; }
+    .toggle-text { font-size: 14px; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Time left</h1>
+    <div id="domain" class="domain">...</div>
+    <div class="timer-container">
+      <span id="timer" class="timer">--:--</span>
+      <span id="timerEmoji" class="timer-emoji">🖥️</span>
+    </div>
+    <div class="bar"><div id="fill" class="fill"></div></div>
+    <div id="status" class="note muted"></div>
+    
+    <div class="mode-toggle">
+      <label class="toggle-label">
+        <input type="checkbox" id="breakModeToggle" />
+        <span class="toggle-text">Break Mode</span>
+      </label>
+    </div>
+  </div>
+  <script src="popup.js"></script>
+</body>
+</html>

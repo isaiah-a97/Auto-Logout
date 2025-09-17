@@ -1,0 +1,38 @@
+
+
+{
+  "manifest_version": 3,
+  "name": "Auto Logout After X Minutes",
+  "version": "0.1.0",
+  "description": "Logs you out of selected sites after X active minutes to reduce procrastination.",
+  "permissions": [
+    "tabs",
+    "storage",
+    "cookies",
+    "idle",
+    "scripting",
+    "alarms"
+  ],
+  "host_permissions": [
+    "*://*.facebook.com/*",
+    "*://*.instagram.com/*",
+    "*://*.twitter.com/*",
+    "*://*.x.com/*",
+    "*://*.tiktok.com/*",
+    "*://*.reddit.com/*",
+    "*://*.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_page": "options.html",
+  "action": {
+    "default_title": "Auto Logout",
+    "default_popup": "popup.html"
+  },
+  "icons": {
+    "16": "/icon-purple.png",
+    "48": "/icon-purple.png",
+    "128": "/icon-purple.png"
+  }
+}
