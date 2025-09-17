@@ -3,7 +3,9 @@ const DEFAULTS = {
   breakLimitMinutes: 10, // 10 minutes for break mode
   sites: ["facebook.com","instagram.com","twitter.com","x.com","tiktok.com","reddit.com","youtube.com"],
   redirectTo: "blocked.html",
-  warningSecondsBefore: 10
+  warningSecondsBefore: 10,
+  themeColor: "#3b82f6",
+  darkMode: false
 };
 
 async function load() {
@@ -12,7 +14,18 @@ async function load() {
   document.getElementById("breakLimit").value = data.breakLimitMinutes;
   document.getElementById("sites").value = data.sites.join("\n");
   document.getElementById("redirect").value = data.redirectTo || "";
-  document.getElementById("warningSecondsBefore").value = data.warningSecondsBefore || 10;
+  // range + label
+  const warn = data.warningSecondsBefore || 10;
+  const warnInput = document.getElementById("warningSecondsBefore");
+  const warnLabel = document.getElementById("warningValue");
+  warnInput.value = warn;
+  warnLabel.textContent = String(warn);
+  document.getElementById("themeColor").value = data.themeColor || "#3b82f6";
+  document.getElementById("darkMode").checked = !!data.darkMode;
+  document.getElementById("darkSwitch").classList.toggle('on', !!data.darkMode);
+  // Live preview
+  if (data.darkMode) document.documentElement.classList.add('dark');
+  document.documentElement.style.setProperty('--primary', data.themeColor || '#3b82f6');
 }
 
 async function save() {
@@ -24,12 +37,27 @@ async function save() {
     .filter(Boolean);
   const redirectTo = document.getElementById("redirect").value || null;
   const warningSecondsBefore = Math.max(1, parseInt(document.getElementById("warningSecondsBefore").value || "10", 10));
+  const themeColor = document.getElementById("themeColor").value || "#3b82f6";
+  const darkMode = !!document.getElementById("darkMode").checked;
 
-  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore });
+  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore, themeColor, darkMode });
   const status = document.getElementById("status");
   status.textContent = "Saved";
   setTimeout(() => status.textContent = "", 1200);
 }
 
 document.getElementById("save").addEventListener("click", save);
+// Range label sync + live preview of theme and dark switch
+document.getElementById("warningSecondsBefore").addEventListener('input', (e) => {
+  document.getElementById("warningValue").textContent = String(e.target.value);
+});
+document.getElementById("themeColor").addEventListener('input', (e) => {
+  document.documentElement.style.setProperty('--primary', e.target.value || '#3b82f6');
+});
+document.getElementById("darkSwitch").addEventListener('click', () => {
+  const checkbox = document.getElementById("darkMode");
+  checkbox.checked = !checkbox.checked;
+  document.getElementById("darkSwitch").classList.toggle('on', checkbox.checked);
+  document.documentElement.classList.toggle('dark', checkbox.checked);
+});
 load();

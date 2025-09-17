@@ -24,6 +24,17 @@ async function init() {
 
   let last = await queryStatus();
 
+  // Apply theme settings
+  try {
+    const { themeColor = '#3b82f6', darkMode = false } = await chrome.storage.sync.get({ themeColor: '#3b82f6', darkMode: false });
+    document.documentElement.style.setProperty('--theme-color', themeColor);
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  } catch {}
+
   // Load break mode state
   async function loadBreakModeState() {
     try {
@@ -72,36 +83,44 @@ async function init() {
       statusEl.textContent = "Unable to connect to extension";
       return;
     }
-
+  
+    // helper: strip .com/.co.uk etc. and capitalise first letter
+    function formatDomain(rawDomain) {
+      if (!rawDomain) return "";
+      const cleaned = rawDomain
+        .replace(/^www\./i, "")                       // remove www.
+        .replace(/\.(com|co\.uk|org|net|io|edu|gov)$/i, ""); // strip common endings
+      return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
+    }
+  
+    // helper: show only first 10 characters, then …
+    function truncate(text, max = 10) {
+      return text.length > max ? text.slice(0, max) + "…" : text;
+    }
+  
+    const displayDomain = data.domain ? truncate(formatDomain(data.domain)) : "";
+  
     // For shared timer, show current domain or generic message
     if (data.isSharedTimer) {
       if (data.domain && data.isTracked) {
-        domainEl.textContent = data.domain;
+        domainEl.textContent = `${displayDomain} 🚫`;
       } else if (data.domain && !data.isTracked) {
-        domainEl.textContent = `${data.domain} (not tracked)`;
+        domainEl.textContent = `${displayDomain} (not tracked ✅)`;
       } else {
         domainEl.textContent = "No tracked site active";
       }
     } else {
       domainEl.textContent = data.domain
-        ? data.domain
+        ? displayDomain
         : "No website detected";
     }
-
+  
     // Show timer for tracked sites or when on untracked site (for shared timer)
     if (data.isSharedTimer) {
-      if (data.isTracked) {
-        const remaining = Math.max(0, data.limitSec - data.elapsedSec);
-        timerEl.textContent = fmt(remaining);
-        const pct = Math.min(100, Math.max(0, (data.elapsedSec / data.limitSec) * 100));
-        fillEl.style.width = `${pct}%`;
-      } else {
-        // Show shared timer even when on untracked site
-        const remaining = Math.max(0, data.limitSec - data.elapsedSec);
-        timerEl.textContent = fmt(remaining);
-        const pct = Math.min(100, Math.max(0, (data.elapsedSec / data.limitSec) * 100));
-        fillEl.style.width = `${pct}%`;
-      }
+      const remaining = Math.max(0, data.limitSec - data.elapsedSec);
+      timerEl.textContent = fmt(remaining);
+      const pct = Math.min(100, Math.max(0, (data.elapsedSec / data.limitSec) * 100));
+      fillEl.style.width = `${pct}%`;
     } else {
       if (!data.isTracked) {
         timerEl.textContent = "--:--";
@@ -111,26 +130,27 @@ async function init() {
           : "Open a website tab.";
         return;
       }
-
+  
       const remaining = Math.max(0, data.limitSec - data.elapsedSec);
       timerEl.textContent = fmt(remaining);
       const pct = Math.min(100, Math.max(0, (data.elapsedSec / data.limitSec) * 100));
       fillEl.style.width = `${pct}%`;
     }
-
+  
     // Status messages
     const activeNotes = [];
     if (!data.windowFocused) activeNotes.push("window not focused");
     if (!data.userActive) activeNotes.push("idle");
-    
+  
     if (data.isSharedTimer && !data.isTracked && data.domain) {
-      statusEl.textContent = "Open a tracked site to continue the timer";
+      statusEl.textContent = "";
     } else if (activeNotes.length) {
       statusEl.textContent = `Timer paused: ${activeNotes.join(", ")}`;
     } else {
       statusEl.textContent = "";
     }
   }
+  
 
   // Load break mode state and render immediately
   await loadBreakModeState();
