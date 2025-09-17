@@ -20,6 +20,8 @@ async function load() {
   const warnLabel = document.getElementById("warningValue");
   warnInput.value = warn;
   warnLabel.textContent = String(warn);
+  // set initial progress fill of range using CSS var --p (in %)
+  warnInput.style.setProperty('--p', `${(warn - warnInput.min) / (warnInput.max - warnInput.min) * 100}%`);
   document.getElementById("themeColor").value = data.themeColor || "#3b82f6";
   document.getElementById("darkMode").checked = !!data.darkMode;
   document.getElementById("darkSwitch").classList.toggle('on', !!data.darkMode);
@@ -50,6 +52,8 @@ document.getElementById("save").addEventListener("click", save);
 // Range label sync + live preview of theme and dark switch
 document.getElementById("warningSecondsBefore").addEventListener('input', (e) => {
   document.getElementById("warningValue").textContent = String(e.target.value);
+  const el = e.target;
+  el.style.setProperty('--p', `${(el.value - el.min) / (el.max - el.min) * 100}%`);
 });
 document.getElementById("themeColor").addEventListener('input', (e) => {
   document.documentElement.style.setProperty('--primary', e.target.value || '#3b82f6');

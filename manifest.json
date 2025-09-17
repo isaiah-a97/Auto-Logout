@@ -26,6 +26,13 @@
   "background": {
     "service_worker": "background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["floater.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "options_page": "options.html",
   "action": {
     "default_title": "Auto Logout",
