@@ -223,33 +223,35 @@ async function tick() {
   try {
     await checkAndResetDaily();
     const settings = await getSettings();
-    
+
+    // Timer should be active if ANY tracked-site tab exists, regardless of focus/active tab
     let shouldBeActive = false;
-    
-    if (state.windowFocused && state.userActive && state.activeTabId != null) {
-      let tab;
-      try {
-        tab = await chrome.tabs.get(state.activeTabId);
-        const domain = domainFromUrl(tab.url);
-        shouldBeActive = isTrackedDomain(domain, settings.sites);
-      } catch {
-        shouldBeActive = false;
+    try {
+      const tabs = await chrome.tabs.query({});
+      for (const tab of tabs) {
+        if (tab.url) {
+          const domain = domainFromUrl(tab.url);
+          if (isTrackedDomain(domain, settings.sites)) {
+            shouldBeActive = true;
+            break;
+          }
+        }
       }
+    } catch {
+      shouldBeActive = false;
     }
-    
+
     // Update icon only if state changed
     if (shouldBeActive !== isTimerActive) {
       console.log("Timer state changing from", isTimerActive, "to", shouldBeActive);
       isTimerActive = shouldBeActive;
       await updateIcon();
     }
-    
-    // Only increment timer if it should be active
+
+    // Increment timer and enforce regardless of focus or active tab
     if (shouldBeActive) {
-      // Increment shared timer
       sharedTimerState.secondsUsed += 1;
       await saveSharedTimerState();
-      
       await enforceIfNeeded(settings);
     }
   } catch (error) {
