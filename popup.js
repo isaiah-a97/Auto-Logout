@@ -21,6 +21,7 @@ async function init() {
   const statusEl = document.getElementById("status");
   const breakModeToggle = document.getElementById("breakModeToggle");
   const timerEmojiEl = document.getElementById("timerEmoji");
+  const pauseBtn = document.getElementById("pauseBtn");
 
   let last = await queryStatus();
 
@@ -150,6 +151,33 @@ async function init() {
       statusEl.textContent = "";
     }
   }
+  // Pause button wiring
+  async function refreshPauseButton() {
+    try {
+      const v = await chrome.storage.local.get(['timerPaused']);
+      pauseBtn.textContent = v.timerPaused ? '▶️' : '⏸️';
+      pauseBtn.title = v.timerPaused ? 'Resume timer' : 'Pause timer';
+    } catch {}
+  }
+  await refreshPauseButton();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.timerPaused) {
+      const val = !!changes.timerPaused.newValue;
+      if (pauseBtn) {
+        pauseBtn.textContent = val ? '▶️' : '⏸️';
+        pauseBtn.title = val ? 'Resume timer' : 'Pause timer';
+      }
+    }
+  });
+  pauseBtn.addEventListener('click', async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'togglePause' });
+      if (res && typeof res.paused === 'boolean') {
+        pauseBtn.textContent = res.paused ? '▶️' : '⏸️';
+        pauseBtn.title = res.paused ? 'Resume timer' : 'Pause timer';
+      }
+    } catch {}
+  });
   
 
   // Load break mode state and render immediately

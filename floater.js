@@ -6,46 +6,59 @@
   root.id = FLOATER_ID;
   root.style.cssText = [
     'position:fixed',
-    'inset:16px auto auto 16px',
+    'left:16px',
+    'top:16px',
     'z-index:2147483647',
-    'font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif',
-    'color:#0f172a',
-    'background:#fff',
-    'border:1px solid rgba(0,0,0,.08)',
-    'box-shadow:0 6px 24px rgba(0,0,0,.18), 0 2px 8px rgba(0,0,0,.12)',
-    'border-radius:10px',
-    'padding:10px 12px',
-    'width:180px',
     'user-select:none',
     'cursor:grab',
     'transition:left .12s ease, top .12s ease',
     'visibility:hidden'
   ].join(';');
 
-  // UI
+  // Shadow DOM for consistent styling across sites
+  const shadow = root.attachShadow({ mode: 'open' });
+  const style = document.createElement('style');
+  style.textContent = [
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    ':host{font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a}',
+    '.card{background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 6px 24px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.12);border-radius:10px;padding:10px 12px;width:180px}',
+    '.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}',
+    '.title{font-weight:700;font-size:12px;opacity:.85}',
+    '.btn{appearance:none;-webkit-appearance:none;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:2px 6px;cursor:pointer;font:inherit;line-height:1}',
+    '.timer{font-size:22px;font-weight:800;margin:2px 0 6px;letter-spacing:.3px}',
+    '.bar{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}',
+    '.fill{height:100%;width:0%;background:#3b82f6;transition:width .25s linear}'
+  ].join('\n');
+  const card = document.createElement('div');
+  card.className = 'card';
   const header = document.createElement('div');
-  header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px';
+  header.className = 'row';
   const title = document.createElement('div');
+  title.className = 'title';
   title.textContent = 'Time left';
-  title.style.cssText = 'font-weight:700;font-size:12px;opacity:.85';
+  const pauseBtn = document.createElement('button');
+  pauseBtn.className = 'btn';
+  pauseBtn.title = 'Pause/Play timer';
+  pauseBtn.textContent = '⏸️';
   const modeBtn = document.createElement('button');
+  modeBtn.className = 'btn';
   modeBtn.textContent = '☕';
   modeBtn.title = 'Toggle break mode';
-  modeBtn.style.cssText = 'background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:2px 6px;cursor:pointer';
-  header.append(title, modeBtn);
+  header.append(title, pauseBtn, modeBtn);
 
   const timer = document.createElement('div');
+  timer.className = 'timer';
   timer.textContent = '--:--';
-  timer.style.cssText = 'font-size:22px;font-weight:800;margin:2px 0 6px;letter-spacing:.3px';
 
   const bar = document.createElement('div');
-  bar.style.cssText = 'height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden';
+  bar.className = 'bar';
   const fill = document.createElement('div');
-  fill.style.cssText = 'height:100%;width:0%;background:#3b82f6;transition:width .25s linear';
+  fill.className = 'fill';
   bar.append(fill);
 
-  root.append(header, timer, bar);
-  document.documentElement.appendChild(root);
+  card.append(header, timer, bar);
+  shadow.append(style, card);
+  (document.body || document.documentElement).appendChild(root);
 
   // Position persistence (shared across tabs)
   let pos = { left: 16, top: 16 };
@@ -128,6 +141,31 @@
   }
   const iv = setInterval(renderOnce, 500);
   window.addEventListener('unload', () => clearInterval(iv));
+  // Pause/play button
+  async function refreshPauseButton() {
+    try {
+      const v = await chrome.storage.local.get(['timerPaused']);
+      pauseBtn.textContent = v.timerPaused ? '▶️' : '⏸️';
+      pauseBtn.title = v.timerPaused ? 'Resume timer' : 'Pause timer';
+    } catch {}
+  }
+  refreshPauseButton();
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.timerPaused) {
+      const val = !!changes.timerPaused.newValue;
+      pauseBtn.textContent = val ? '▶️' : '⏸️';
+      pauseBtn.title = val ? 'Resume timer' : 'Pause timer';
+    }
+  });
+  pauseBtn.addEventListener('click', async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'togglePause' });
+      if (res && typeof res.paused === 'boolean') {
+        pauseBtn.textContent = res.paused ? '▶️' : '⏸️';
+        pauseBtn.title = res.paused ? 'Resume timer' : 'Pause timer';
+      }
+    } catch {}
+  });
 
   // Mode button -> toggle break mode and reset timer
   modeBtn.addEventListener('click', async () => {

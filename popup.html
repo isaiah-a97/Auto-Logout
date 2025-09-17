@@ -10,6 +10,7 @@
     h1 { margin: 0 0 6px; font-size: 16px; }
     .domain { opacity: 0.8; word-break: break-all; margin-bottom: 8px; }
     .timer-container { display: flex; align-items: center; justify-content: space-between; margin: 6px 0 10px; }
+    .controls { display:flex; align-items:center; gap:8px; }
     .timer { font-size: 28px; font-weight: 700; }
     .timer-emoji { font-size: 28px; }
     .bar { height: 10px; background: #e5e7eb; border-radius: 999px; overflow: hidden; }
@@ -29,7 +30,12 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Time left</h1>
+    <h1 style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+      <span>Time left</span>
+      <span class="controls">
+        <button id="pauseBtn" title="Pause/Play" style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:2px 6px;cursor:pointer;font:inherit">⏸️</button>
+      </span>
+    </h1>
     <div id="domain" class="domain">...</div>
     <div class="timer-container">
       <span id="timer" class="timer">--:--</span>

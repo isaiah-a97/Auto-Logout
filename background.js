@@ -26,6 +26,7 @@ let state = {
 
 // Icon state
 let isTimerActive = false;
+let timerPaused = false;
 
 async function updateIcon() {
   try {
@@ -248,8 +249,8 @@ async function tick() {
       await updateIcon();
     }
 
-    // Increment timer and enforce regardless of focus or active tab
-    if (shouldBeActive) {
+    // Increment timer and enforce when active and not paused
+    if (shouldBeActive && !timerPaused) {
       sharedTimerState.secondsUsed += 1;
       await saveSharedTimerState();
       await enforceIfNeeded(settings);
@@ -294,6 +295,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   } else if (request.type === "resetTimer") {
     resetTimer();
     sendResponse({ success: true });
+    return true;
+  } else if (request.type === 'togglePause') {
+    (async () => {
+      try {
+        const cur = await chrome.storage.local.get(['timerPaused']);
+        const next = !cur.timerPaused;
+        await chrome.storage.local.set({ timerPaused: next });
+        sendResponse({ success: true, paused: next });
+      } catch (e) {
+        console.error('Error toggling pause:', e);
+        sendResponse({ success: false });
+      }
+    })();
     return true;
   }
 });
@@ -538,3 +552,17 @@ function getNextMidnight() {
   await checkAndResetDaily();
   await updateIcon(); // Initialize with white icon
 })();
+
+// Initialize paused state and keep it in sync
+(async () => {
+  try {
+    const v = await chrome.storage.local.get(['timerPaused']);
+    timerPaused = !!v.timerPaused;
+  } catch {}
+})();
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === 'local' && changes.timerPaused) {
+    timerPaused = !!changes.timerPaused.newValue;
+  }
+});
