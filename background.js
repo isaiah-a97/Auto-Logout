@@ -13,7 +13,8 @@ const DEFAULTS = {
     "reddit.com",
     "youtube.com"
   ],
-  redirectTo: "blocked.html" // set to null to disable redirect
+  redirectTo: "blocked.html", // set to null to disable redirect
+  warningSecondsBefore: 10
 };
 
 let state = {
@@ -72,26 +73,12 @@ async function getCurrentTimeLimit() {
   return isBreakMode ? settings.breakLimitMinutes : settings.limitMinutes;
 }
 
-function playWarningSound() {
+async function playWarningSound() {
   try {
-    // Create a simple beep sound using Web Audio API
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
-    
-    oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
-    
-    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
-    oscillator.type = 'sine';
-    
-    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-    
-    oscillator.start(audioContext.currentTime);
-    oscillator.stop(audioContext.currentTime + 0.5);
+    await ensureOffscreen();
+    await chrome.runtime.sendMessage({ play: { source: 'beep.mp3', volume: 1 } });
   } catch (error) {
-    console.error("Error playing warning sound:", error);
+    console.error("Error requesting warning sound:", error);
   }
 }
 
@@ -169,9 +156,9 @@ async function clearCookiesForDomain(domain) {
 
 async function enforceIfNeeded(settings) {
   const limitSec = await getCurrentTimeLimit() * 60;
-  
-  // Play warning sound 2 seconds before limit (or 1 second for very short limits)
-  const warningTime = limitSec > 5 ? limitSec - 2 : limitSec - 1;
+  const warnBefore = Math.max(1, settings.warningSecondsBefore || 10);
+  const warningTime = Math.max(1, limitSec - warnBefore);
+
   if (sharedTimerState.secondsUsed === warningTime && warningTime > 0) {
     playWarningSound();
   }
@@ -186,32 +173,44 @@ async function enforceIfNeeded(settings) {
       await clearCookiesForDomain(`www.${site}`);
     }
     
-    // Redirect ALL tracked site tabs to blocked page
-    if (settings.redirectTo) {
-      try {
-        const tabs = await chrome.tabs.query({});
-        const tabsToRedirect = [];
-        
-        for (const tab of tabs) {
-          if (tab.url) {
-            const domain = domainFromUrl(tab.url);
-            if (isTrackedDomain(domain, settings.sites)) {
-              tabsToRedirect.push(tab.id);
-            }
+    // Post-limit action: either close all tracked tabs or redirect them
+    try {
+      const tabs = await chrome.tabs.query({});
+      const trackedTabIds = [];
+      let activeTrackedInCurrentWindow = false;
+      for (const tab of tabs) {
+        if (tab.url) {
+          const domain = domainFromUrl(tab.url);
+          if (isTrackedDomain(domain, settings.sites)) {
+            trackedTabIds.push(tab.id);
+            if (tab.active) activeTrackedInCurrentWindow = true;
           }
         }
-        
-        // Redirect all tracked tabs to blocked page
-        for (const tabId of tabsToRedirect) {
+      }
+
+      if (settings.redirectTo === 'close') {
+        // Close all tracked tabs (including the current one if it's tracked)
+        for (const tabId of trackedTabIds) {
+          try { await chrome.tabs.remove(tabId); } catch (error) {
+            console.error(`Error closing tab ${tabId}:`, error);
+          }
+        }
+        // Sweep any auto-opened empty/new tabs shortly after
+        setTimeout(() => {
+          try { closeEmptyTabsAndCurrentTab(null); } catch {}
+        }, 100);
+      } else if (settings.redirectTo) {
+        // Redirect all tracked tabs to the configured blocked page
+        for (const tabId of trackedTabIds) {
           try {
             await chrome.tabs.update(tabId, { url: chrome.runtime.getURL(settings.redirectTo) });
           } catch (error) {
             console.error(`Error redirecting tab ${tabId}:`, error);
           }
         }
-      } catch (error) {
-        console.error("Error redirecting tabs:", error);
       }
+    } catch (error) {
+      console.error('Error handling post-limit tab action:', error);
     }
     
     // Reset the shared timer
@@ -296,6 +295,35 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     return true;
   }
 });
+
+async function ensureOffscreen() {
+  try {
+    let hasDoc = false;
+    try {
+      if (chrome.offscreen && chrome.offscreen.hasDocument) {
+        hasDoc = await chrome.offscreen.hasDocument();
+      }
+    } catch (e) {
+      console.warn('[audio] hasDocument check failed, will try to create anyway:', e);
+    }
+
+    if (hasDoc) {
+      // Already exists
+      return;
+    }
+
+    console.log('[audio] creating offscreen document');
+    await chrome.offscreen.createDocument({
+      url: 'offscreen.html',
+      reasons: ['AUDIO_PLAYBACK'],
+      justification: 'Play short warning beep before time limit.'
+    });
+    console.log('[audio] offscreen document created');
+  } catch (e) {
+    console.error('[audio] create offscreen failed:', e);
+    throw e;
+  }
+}
 
 async function handleStatusRequest(sendResponse) {
   try {
@@ -465,18 +493,7 @@ async function closeEmptyTabsAndCurrentTab(currentTabId) {
     
     console.log(`Closed ${closedCount} tabs (empty + current)`);
     
-    // If we closed all tabs, open one new tab to prevent having no tabs
-    if (closedCount > 0) {
-      const remainingTabs = await chrome.tabs.query({});
-      if (remainingTabs.length === 0) {
-        try {
-          await chrome.tabs.create({ url: 'chrome://newtab/' });
-          console.log('Opened new tab after closing all tabs');
-        } catch (error) {
-          console.error('Failed to open new tab after cleanup:', error);
-        }
-      }
-    }
+    // Do not open a replacement tab; emulate Back to Work behavior precisely
     
   } catch (error) {
     console.error('Error in closeEmptyTabsAndCurrentTab:', error);

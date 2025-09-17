@@ -2,7 +2,8 @@ const DEFAULTS = {
   limitMinutes: 0.083, // 5 seconds for testing
   breakLimitMinutes: 10, // 10 minutes for break mode
   sites: ["facebook.com","instagram.com","twitter.com","x.com","tiktok.com","reddit.com","youtube.com"],
-  redirectTo: "blocked.html"
+  redirectTo: "blocked.html",
+  warningSecondsBefore: 10
 };
 
 async function load() {
@@ -11,6 +12,7 @@ async function load() {
   document.getElementById("breakLimit").value = data.breakLimitMinutes;
   document.getElementById("sites").value = data.sites.join("\n");
   document.getElementById("redirect").value = data.redirectTo || "";
+  document.getElementById("warningSecondsBefore").value = data.warningSecondsBefore || 10;
 }
 
 async function save() {
@@ -21,8 +23,9 @@ async function save() {
     .map(s => s.trim().replace(/^https?:\/\//, "").replace(/^www\./, ""))
     .filter(Boolean);
   const redirectTo = document.getElementById("redirect").value || null;
+  const warningSecondsBefore = Math.max(1, parseInt(document.getElementById("warningSecondsBefore").value || "10", 10));
 
-  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo });
+  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore });
   const status = document.getElementById("status");
   status.textContent = "Saved";
   setTimeout(() => status.textContent = "", 1200);

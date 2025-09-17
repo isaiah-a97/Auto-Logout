@@ -26,6 +26,10 @@
   <input id="breakLimit" type="number" min="1" step="1" />
   <div class="help">How many minutes you can spend on tracked sites during break mode. Default is 10 minutes.</div>
 
+  <label>Play warning sound this many seconds before limit</label>
+  <input id="warningSecondsBefore" type="number" min="1" step="1" />
+  <div class="help">Example: 10 means play a beep 10 seconds before the time limit is reached.</div>
+
   <label>Sites - one per line (example: facebook.com)</label>
   <textarea id="sites" placeholder="facebook.com&#10;youtube.com&#10;reddit.com&#10;twitter.com"></textarea>
   <div class="help">Enter domain names (without www or https://). The extension will track time spent on these sites.</div>
@@ -33,6 +37,7 @@
   <label>After logout redirect</label>
   <select id="redirect">
     <option value="blocked.html">Built-in block page</option>
+    <option value="close">Close all social media pages</option>
     <option value="">Stay on the page</option>
   </select>
   <div class="help">Choose what happens after you're logged out due to time limit.</div>

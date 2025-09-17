@@ -11,7 +11,8 @@
     "cookies",
     "idle",
     "scripting",
-    "alarms"
+    "alarms",
+    "offscreen"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",
@@ -34,5 +35,11 @@
     "16": "/icon-purple.png",
     "48": "/icon-purple.png",
     "128": "/icon-purple.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["offscreen.html", "offscreen.js", "beep.mp3"],
+      "matches": ["*://*/*"]
+    }
+  ]
 }
