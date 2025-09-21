@@ -22,6 +22,7 @@ async function init() {
   const breakModeToggle = document.getElementById("breakModeToggle");
   const timerEmojiEl = document.getElementById("timerEmoji");
   const pauseBtn = document.getElementById("pauseBtn");
+  const logoutBtn = document.getElementById("logoutBtn");
 
   let last = await queryStatus();
 
@@ -55,6 +56,9 @@ async function init() {
       
       // Reset the timer when switching modes
       await chrome.runtime.sendMessage({ type: "resetTimer" });
+      
+      // Auto-start timer after mode change
+      await chrome.runtime.sendMessage({ type: 'startTimer' });
       
       // Immediately refresh the display with new data
       const newData = await queryStatus();
@@ -177,6 +181,19 @@ async function init() {
         pauseBtn.title = res.paused ? 'Resume timer' : 'Pause timer';
       }
     } catch {}
+  });
+
+  // Logout button
+  logoutBtn.addEventListener('click', async () => {
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'logoutNow' });
+      if (res && res.success) {
+        // Close the popup after successful logout
+        window.close();
+      }
+    } catch (error) {
+      console.error('Error performing logout:', error);
+    }
   });
   
 

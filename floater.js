@@ -196,6 +196,8 @@ style.textContent = [
       const next = !cur.breakMode;
       await chrome.storage.local.set({ breakMode: next });
       await chrome.runtime.sendMessage({ type: 'resetTimer' });
+      // Auto-start timer after mode change
+      await chrome.runtime.sendMessage({ type: 'startTimer' });
       modeBtn.textContent = next ? '☕' : '🖥️';
       renderOnce();
     } catch {}

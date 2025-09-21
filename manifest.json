@@ -12,7 +12,8 @@
     "idle",
     "scripting",
     "alarms",
-    "offscreen"
+    "offscreen",
+    "contextMenus"
   ],
   "host_permissions": [
     "*://*.facebook.com/*",

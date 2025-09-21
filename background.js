@@ -111,6 +111,8 @@ async function resetTimer() {
     sharedTimerState.secondsUsed = 0;
     hasPlayedStartBeep = false; // Reset start beep flag when timer resets
     await saveSharedTimerState();
+    // Clear auto-resume flags when timer resets
+    await chrome.storage.local.set({ autoResumeTriggered: false, timerPausedAt: null });
     console.log("Timer reset due to mode change");
   } catch (error) {
     console.error("Error resetting timer:", error);
@@ -128,6 +130,8 @@ async function checkAndResetDaily() {
     sharedTimerState.lastResetDate = today;
     hasPlayedStartBeep = false; // Reset start beep flag on daily reset
     await saveSharedTimerState();
+    // Clear auto-resume flags on daily reset
+    await chrome.storage.local.set({ autoResumeTriggered: false, timerPausedAt: null });
     console.log("Daily timer reset for", today);
   }
 }
@@ -158,6 +162,95 @@ async function clearCookiesForDomain(domain) {
     console.log(`Cleared cookies for domain: ${domain}`);
   } catch (error) {
     console.error(`Error clearing cookies for domain ${domain}:`, error);
+  }
+}
+
+async function checkAutoResume(settings) {
+  try {
+    // Only auto-resume if timer is paused
+    const pauseData = await chrome.storage.local.get(['timerPaused', 'timerPausedAt', 'autoResumeTriggered']);
+    if (!pauseData.timerPaused || !pauseData.timerPausedAt) {
+      return;
+    }
+    
+    // Check if we've already triggered auto-resume for this pause session
+    if (pauseData.autoResumeTriggered) {
+      return;
+    }
+    
+    const now = Date.now();
+    const pausedDuration = now - pauseData.timerPausedAt;
+    const thresholdMs = (settings.autoResumeMinutes || 5) * 60 * 1000;
+    
+    if (pausedDuration >= thresholdMs) {
+      console.log(`Auto-resuming timer after ${Math.round(pausedDuration / 1000 / 60)} minutes of pause`);
+      
+      // Mark as triggered to prevent multiple auto-resumes
+      await chrome.storage.local.set({ autoResumeTriggered: true });
+      
+      // Start the timer
+      await chrome.storage.local.set({ timerPaused: false, timerPausedAt: null });
+    }
+  } catch (error) {
+    console.error('Error in checkAutoResume:', error);
+  }
+}
+
+async function performLogout() {
+  try {
+    const settings = await getSettings();
+    
+    // Clear cookies for all tracked domains
+    for (const site of settings.sites) {
+      await clearCookiesForDomain(site);
+      // Also try clearing for www subdomain
+      await clearCookiesForDomain(`www.${site}`);
+    }
+    
+    // Close or redirect all tracked tabs
+    const tabs = await chrome.tabs.query({});
+    const trackedTabIds = [];
+    let activeTrackedInCurrentWindow = false;
+    for (const tab of tabs) {
+      if (tab.url) {
+        const domain = domainFromUrl(tab.url);
+        if (isTrackedDomain(domain, settings.sites)) {
+          trackedTabIds.push(tab.id);
+          if (tab.active) activeTrackedInCurrentWindow = true;
+        }
+      }
+    }
+
+    if (settings.redirectTo === 'close') {
+      // Close all tracked tabs
+      for (const tabId of trackedTabIds) {
+        try { await chrome.tabs.remove(tabId); } catch (error) {
+          console.error(`Error closing tab ${tabId}:`, error);
+        }
+      }
+      // Sweep any auto-opened empty/new tabs shortly after
+      setTimeout(() => {
+        try { closeEmptyTabsAndCurrentTab(null); } catch {}
+      }, 100);
+    } else if (settings.redirectTo) {
+      // Redirect all tracked tabs to the configured blocked page
+      for (const tabId of trackedTabIds) {
+        try {
+          await chrome.tabs.update(tabId, { url: chrome.runtime.getURL(settings.redirectTo) });
+        } catch (error) {
+          console.error(`Error redirecting tab ${tabId}:`, error);
+        }
+      }
+    }
+    
+    // Reset the shared timer
+    sharedTimerState.secondsUsed = 0;
+    await saveSharedTimerState();
+    
+    console.log("Manual logout completed");
+  } catch (error) {
+    console.error('Error performing manual logout:', error);
+    throw error;
   }
 }
 
@@ -280,9 +373,24 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
   state.activeTabId = tabId;
 });
 
-chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo) => {
   if (tabId === state.activeTabId && changeInfo.url) {
     state.activeDomain = domainFromUrl(changeInfo.url);
+  }
+  
+  // Auto-resume timer logic
+  if (changeInfo.url && changeInfo.status === 'complete') {
+    try {
+      const domain = domainFromUrl(changeInfo.url);
+      const settings = await getSettings();
+      const isTracked = isTrackedDomain(domain, settings.sites);
+      
+      if (isTracked) {
+        await checkAutoResume(settings);
+      }
+    } catch (error) {
+      console.error('Error in auto-resume check:', error);
+    }
   }
 });
 
@@ -317,10 +425,44 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       try {
         const cur = await chrome.storage.local.get(['timerPaused']);
         const next = !cur.timerPaused;
-        await chrome.storage.local.set({ timerPaused: next });
+        const updates = { timerPaused: next };
+        
+        // Track when timer is paused for auto-resume logic
+        if (next) {
+          updates.timerPausedAt = Date.now();
+          updates.autoResumeTriggered = false; // Reset auto-resume flag when pausing
+        } else {
+          // Clear pause timestamp when resuming
+          updates.timerPausedAt = null;
+          updates.autoResumeTriggered = false; // Clear auto-resume flag when manually resuming
+        }
+        
+        await chrome.storage.local.set(updates);
         sendResponse({ success: true, paused: next });
       } catch (e) {
         console.error('Error toggling pause:', e);
+        sendResponse({ success: false });
+      }
+    })();
+    return true;
+  } else if (request.type === 'logoutNow') {
+    (async () => {
+      try {
+        await performLogout();
+        sendResponse({ success: true });
+      } catch (e) {
+        console.error('Error performing logout:', e);
+        sendResponse({ success: false });
+      }
+    })();
+    return true;
+  } else if (request.type === 'startTimer') {
+    (async () => {
+      try {
+        await chrome.storage.local.set({ timerPaused: false, timerPausedAt: null, autoResumeTriggered: false });
+        sendResponse({ success: true });
+      } catch (e) {
+        console.error('Error starting timer:', e);
         sendResponse({ success: false });
       }
     })();
@@ -547,11 +689,28 @@ chrome.runtime.onInstalled.addListener(async () => {
     when: getNextMidnight(),
     periodInMinutes: 24 * 60 // 24 hours
   });
+
+  // Create context menu
+  chrome.contextMenus.create({
+    id: 'logout',
+    title: 'Logout',
+    contexts: ['action']
+  });
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === 'dailyReset') {
     checkAndResetDaily();
+  }
+});
+
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'logout') {
+    try {
+      await performLogout();
+    } catch (error) {
+      console.error('Error performing logout from context menu:', error);
+    }
   }
 });
 

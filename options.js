@@ -6,7 +6,8 @@ const DEFAULTS = {
   warningSecondsBefore: 10,
   themeColor: "#3b82f6",
   darkMode: false,
-  beepOnStart: false
+  beepOnStart: false,
+  autoResumeMinutes: 5
 };
 
 async function load() {
@@ -28,6 +29,12 @@ async function load() {
   document.getElementById("darkSwitch").classList.toggle('on', !!data.darkMode);
   document.getElementById("beepOnStart").checked = !!data.beepOnStart;
   document.getElementById("beepOnStartSwitch").classList.toggle('on', !!data.beepOnStart);
+  const autoResumeValue = data.autoResumeMinutes || 5;
+  document.getElementById("autoResumeMinutes").value = autoResumeValue;
+  document.getElementById("autoResumeValue").textContent = String(autoResumeValue);
+  // set initial progress fill of range using CSS var --p (in %)
+  const autoResumeInput = document.getElementById("autoResumeMinutes");
+  autoResumeInput.style.setProperty('--p', `${(autoResumeValue - autoResumeInput.min) / (autoResumeInput.max - autoResumeInput.min) * 100}%`);
   // Live preview
   if (data.darkMode) document.documentElement.classList.add('dark');
   document.documentElement.style.setProperty('--primary', data.themeColor || '#3b82f6');
@@ -45,8 +52,9 @@ async function save() {
   const themeColor = document.getElementById("themeColor").value || "#3b82f6";
   const darkMode = !!document.getElementById("darkMode").checked;
   const beepOnStart = !!document.getElementById("beepOnStart").checked;
+  const autoResumeMinutes = Math.max(1, parseInt(document.getElementById("autoResumeMinutes").value || "5", 10));
 
-  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore, themeColor, darkMode, beepOnStart });
+  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore, themeColor, darkMode, beepOnStart, autoResumeMinutes });
   const status = document.getElementById("status");
   status.textContent = "Saved";
   setTimeout(() => status.textContent = "", 1200);
@@ -56,6 +64,11 @@ document.getElementById("save").addEventListener("click", save);
 // Range label sync + live preview of theme and dark switch
 document.getElementById("warningSecondsBefore").addEventListener('input', (e) => {
   document.getElementById("warningValue").textContent = String(e.target.value);
+  const el = e.target;
+  el.style.setProperty('--p', `${(el.value - el.min) / (el.max - el.min) * 100}%`);
+});
+document.getElementById("autoResumeMinutes").addEventListener('input', (e) => {
+  document.getElementById("autoResumeValue").textContent = String(e.target.value);
   const el = e.target;
   el.style.setProperty('--p', `${(el.value - el.min) / (el.max - el.min) * 100}%`);
 });
