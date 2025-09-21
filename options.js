@@ -5,7 +5,8 @@ const DEFAULTS = {
   redirectTo: "blocked.html",
   warningSecondsBefore: 10,
   themeColor: "#3b82f6",
-  darkMode: false
+  darkMode: false,
+  beepOnStart: false
 };
 
 async function load() {
@@ -25,6 +26,8 @@ async function load() {
   document.getElementById("themeColor").value = data.themeColor || "#3b82f6";
   document.getElementById("darkMode").checked = !!data.darkMode;
   document.getElementById("darkSwitch").classList.toggle('on', !!data.darkMode);
+  document.getElementById("beepOnStart").checked = !!data.beepOnStart;
+  document.getElementById("beepOnStartSwitch").classList.toggle('on', !!data.beepOnStart);
   // Live preview
   if (data.darkMode) document.documentElement.classList.add('dark');
   document.documentElement.style.setProperty('--primary', data.themeColor || '#3b82f6');
@@ -41,8 +44,9 @@ async function save() {
   const warningSecondsBefore = Math.max(1, parseInt(document.getElementById("warningSecondsBefore").value || "10", 10));
   const themeColor = document.getElementById("themeColor").value || "#3b82f6";
   const darkMode = !!document.getElementById("darkMode").checked;
+  const beepOnStart = !!document.getElementById("beepOnStart").checked;
 
-  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore, themeColor, darkMode });
+  await chrome.storage.sync.set({ limitMinutes: limit, breakLimitMinutes: breakLimit, sites, redirectTo, warningSecondsBefore, themeColor, darkMode, beepOnStart });
   const status = document.getElementById("status");
   status.textContent = "Saved";
   setTimeout(() => status.textContent = "", 1200);
@@ -63,5 +67,10 @@ document.getElementById("darkSwitch").addEventListener('click', () => {
   checkbox.checked = !checkbox.checked;
   document.getElementById("darkSwitch").classList.toggle('on', checkbox.checked);
   document.documentElement.classList.toggle('dark', checkbox.checked);
+});
+document.getElementById("beepOnStartSwitch").addEventListener('click', () => {
+  const checkbox = document.getElementById("beepOnStart");
+  checkbox.checked = !checkbox.checked;
+  document.getElementById("beepOnStartSwitch").classList.toggle('on', checkbox.checked);
 });
 load();

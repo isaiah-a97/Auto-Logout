@@ -14,7 +14,8 @@ const DEFAULTS = {
     "youtube.com"
   ],
   redirectTo: "blocked.html", // set to null to disable redirect
-  warningSecondsBefore: 10
+  warningSecondsBefore: 10,
+  beepOnStart: false
 };
 
 let state = {
@@ -50,6 +51,9 @@ let sharedTimerState = {
   secondsUsed: 0,
   lastResetDate: null
 };
+
+// Track if we've played the start beep for this session
+let hasPlayedStartBeep = false;
 
 async function getSettings() {
   const data = await chrome.storage.sync.get(DEFAULTS);
@@ -105,6 +109,7 @@ async function saveSharedTimerState() {
 async function resetTimer() {
   try {
     sharedTimerState.secondsUsed = 0;
+    hasPlayedStartBeep = false; // Reset start beep flag when timer resets
     await saveSharedTimerState();
     console.log("Timer reset due to mode change");
   } catch (error) {
@@ -121,6 +126,7 @@ async function checkAndResetDaily() {
   if (sharedTimerState.lastResetDate !== today) {
     sharedTimerState.secondsUsed = 0;
     sharedTimerState.lastResetDate = today;
+    hasPlayedStartBeep = false; // Reset start beep flag on daily reset
     await saveSharedTimerState();
     console.log("Daily timer reset for", today);
   }
@@ -251,6 +257,16 @@ async function tick() {
 
     // Increment timer and enforce when active and not paused
     if (shouldBeActive && !timerPaused) {
+      // Play start beep if enabled and this is the first second of the session
+      if (sharedTimerState.secondsUsed === 0 && settings.beepOnStart && !hasPlayedStartBeep) {
+        try {
+          await playWarningSound();
+          hasPlayedStartBeep = true;
+        } catch (error) {
+          console.error("Error playing start beep:", error);
+        }
+      }
+      
       sharedTimerState.secondsUsed += 1;
       await saveSharedTimerState();
       await enforceIfNeeded(settings);

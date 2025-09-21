@@ -15,35 +15,62 @@
     'visibility:hidden'
   ].join(';');
 
-  // Shadow DOM for consistent styling across sites
-  const shadow = root.attachShadow({ mode: 'open' });
-  const style = document.createElement('style');
-  style.textContent = [
-    '*{box-sizing:border-box;margin:0;padding:0}',
-    ':host{font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a}',
-    '.card{background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 6px 24px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.12);border-radius:10px;padding:10px 12px;width:180px}',
-    '.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px}',
-    '.title{font-weight:700;font-size:12px;opacity:.85}',
-    '.btn{appearance:none;-webkit-appearance:none;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:2px 6px;cursor:pointer;font:inherit;line-height:1}',
-    '.timer{font-size:22px;font-weight:800;margin:2px 0 6px;letter-spacing:.3px}',
-    '.bar{height:8px;background:#e5e7eb;border-radius:999px;overflow:hidden}',
-    '.fill{height:100%;width:0%;background:#3b82f6;transition:width .25s linear}'
-  ].join('\n');
+// Shadow DOM for consistent styling across sites
+const shadow = root.attachShadow({ mode: 'open' });
+const style = document.createElement('style');
+style.textContent = [
+  '*{box-sizing:border-box;margin:0;padding:0}',
+  // combine base font + inactive fade + transitions here
+  ':host{font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;opacity:.6;transition:opacity .3s ease,width .25s ease}',
+  ':host(:hover){opacity:1}',
+
+  /* Expanded card keeps original width */
+  '.card{background:#fff;border:1px solid rgba(0,0,0,.08);box-shadow:0 6px 24px rgba(0,0,0,.18),0 2px 8px rgba(0,0,0,.12);border-radius:12px;padding:12px 14px;width:180px;display:grid;grid-auto-rows:max-content;gap:8px;transition:width .25s ease,padding .25s ease}',
+  '.row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0}',
+  '.title{font-weight:700;font-size:14px;opacity:.9}',
+  '.btn{appearance:none;-webkit-appearance:none;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:999px;padding:4px 6px;cursor:pointer;font:inherit;line-height:1}',
+  '.timer{font-size:28px;font-weight:800;margin:0;letter-spacing:.3px;text-align:left}',
+
+  /* Progress bar - rounded light track with blue fill */
+  '.bar{height:10px;background:#e5e7eb;border-radius:999px;overflow:hidden;box-shadow:inset 0 1px 1px rgba(0,0,0,.04)}',
+  '.fill{height:100%;width:0%;background:#3b82f6;transition:width .25s linear;border-radius:inherit}',
+
+  /* Minimal default: small, centered, timer only */
+  '.minimal{width:auto;padding:6px 10px;gap:0}',
+  '.minimal .row,.minimal .bar,.minimal .btn,.minimal .title{display:none}',
+  '.minimal .timer{margin:0;text-align:center;font-size:22px}',
+
+  /* On hover, expand to full width and reveal controls + bar */
+  ':host(:hover) .minimal{width:180px;padding:12px 14px;gap:8px}',
+  ':host(:hover) .minimal .row{display:flex}',
+  ':host(:hover) .minimal .bar{display:block}',
+  ':host(:hover) .minimal .btn,:host(:hover) .minimal .title{display:initial}',
+  ':host(:hover) .minimal .timer{text-align:left;font-size:28px}'
+].join('\n');
+
+
+  shadow.appendChild(style);
+
   const card = document.createElement('div');
-  card.className = 'card';
+  card.className = 'card minimal';
+
   const header = document.createElement('div');
   header.className = 'row';
+
   const title = document.createElement('div');
   title.className = 'title';
   title.textContent = 'Time left';
+
   const pauseBtn = document.createElement('button');
   pauseBtn.className = 'btn';
   pauseBtn.title = 'Pause/Play timer';
   pauseBtn.textContent = '⏸️';
+
   const modeBtn = document.createElement('button');
   modeBtn.className = 'btn';
   modeBtn.textContent = '☕';
   modeBtn.title = 'Toggle break mode';
+
   header.append(title, pauseBtn, modeBtn);
 
   const timer = document.createElement('div');
@@ -60,7 +87,7 @@
   shadow.append(style, card);
   (document.body || document.documentElement).appendChild(root);
 
-  // Position persistence (shared across tabs)
+  // Position persistence
   let pos = { left: 16, top: 16 };
   chrome.storage.local.get(['floaterPos']).then((v)=>{
     if (v && v.floaterPos && Number.isFinite(v.floaterPos.left) && Number.isFinite(v.floaterPos.top)) {
@@ -68,13 +95,12 @@
       root.style.left = pos.left + 'px';
       root.style.top = pos.top + 'px';
     }
-    // Show only after applying stored position to avoid visible jump
     root.style.visibility = 'visible';
   }).catch(()=>{});
 
   function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
 
-  // Dragging (top/left coordinates; down moves down intuitively)
+  // Dragging
   let dragging = false; let startX=0, startY=0; let startLeft=0, startTop=0; let raf = null; let lastSync=0;
   function onMove(e){
     const dx = e.clientX - startX;
@@ -87,7 +113,6 @@
       root.style.left = pos.left + 'px';
       root.style.top = pos.top + 'px';
     });
-    // Throttled cross-tab sync while dragging
     const now = Date.now();
     if (now - lastSync > 150) {
       lastSync = now;
@@ -96,12 +121,10 @@
   }
   root.addEventListener('mousedown', (e) => {
     dragging = true; root.style.cursor='grabbing';
-    // Disable transition while dragging for direct response
     const prevTransition = root.style.transition;
     root.setAttribute('data-prev-transition', prevTransition);
     root.style.transition = 'none';
     startX = e.clientX; startY = e.clientY;
-    // compute current
     const rect = root.getBoundingClientRect();
     startLeft = rect.left; startTop = rect.top;
     e.preventDefault();
@@ -109,14 +132,12 @@
   window.addEventListener('mouseup', () => {
     if (!dragging) return;
     dragging = false; root.style.cursor='grab';
-    // Restore transition after drag
     const prev = root.getAttribute('data-prev-transition') || 'left .12s ease, top .12s ease';
     root.style.transition = prev;
     chrome.storage.local.set({ floaterPos: pos }).catch(()=>{});
   });
   window.addEventListener('mousemove', (e) => { if(!dragging) return; onMove(e); });
 
-  // Apply position updates from other tabs immediately
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === 'local' && changes.floaterPos && !dragging) {
       const v = changes.floaterPos.newValue;
@@ -141,6 +162,7 @@
   }
   const iv = setInterval(renderOnce, 500);
   window.addEventListener('unload', () => clearInterval(iv));
+
   // Pause/play button
   async function refreshPauseButton() {
     try {
@@ -174,13 +196,12 @@
       const next = !cur.breakMode;
       await chrome.storage.local.set({ breakMode: next });
       await chrome.runtime.sendMessage({ type: 'resetTimer' });
-      // reflect icon immediately
       modeBtn.textContent = next ? '☕' : '🖥️';
       renderOnce();
     } catch {}
   });
 
-  // Reflect current mode on load and when storage changes
+  // Reflect current mode
   async function refreshModeIcon() {
     try {
       const cur = await chrome.storage.local.get(['breakMode']);
@@ -194,4 +215,3 @@
     }
   });
 })();
-
